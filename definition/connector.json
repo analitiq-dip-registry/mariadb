@@ -1,43 +1,163 @@
 {
   "$schema": "https://schemas.analitiq.ai/connector/latest.json",
-  "kind": "api",
-  "display_name": "REPLACE",
-  "description": "REPLACE with a short description",
+  "kind": "database",
+  "connector_id": "mariadb",
+  "display_name": "MariaDB",
+  "description": "MariaDB relational database — a community-developed, open-source fork of MySQL. Connects over the MySQL wire protocol via the SQLAlchemy mariadb+pymysql dialect for structured data storage, querying, and table discovery.",
+  "documentation_url": "https://mariadb.com/kb/en/",
+  "tags": ["database", "mariadb", "mysql", "sqlalchemy", "relational"],
   "version": "0.0.0",
-  "default_transport": "api",
+  "default_transport": "database",
   "transports": {
-    "api": {
-      "transport_type": "http",
-      "base_url": "https://api.example.com/v1/",
-      "headers": {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": { "template": "Bearer ${secrets.api_key}" }
+    "database": {
+      "transport_type": "sqlalchemy",
+      "driver": "mariadb+pymysql",
+      "dsn": {
+        "kind": "url_template",
+        "template": "mariadb+pymysql://{username}:{password}@{host}:{port}/{database}",
+        "bindings": {
+          "username": {
+            "value": { "ref": "connection.parameters.username" },
+            "encoding": "url_userinfo"
+          },
+          "password": {
+            "value": { "ref": "secrets.password" },
+            "encoding": "url_userinfo"
+          },
+          "host": {
+            "value": { "ref": "connection.parameters.host" },
+            "encoding": "host"
+          },
+          "port": {
+            "value": { "ref": "connection.parameters.port" },
+            "encoding": "raw"
+          },
+          "database": {
+            "value": { "ref": "connection.parameters.database" },
+            "encoding": "url_path_segment"
+          }
+        }
       },
-      "timeout_seconds": 30,
-      "rate_limit": {
-        "max_requests": 60,
-        "time_window_seconds": 60
+      "tls": {
+        "mode": { "ref": "connection.parameters.ssl_mode" },
+        "ca_certificate": { "ref": "secrets.ssl_ca_certificate" }
       }
     }
   },
   "auth": {
-    "type": "api_key"
+    "type": "db"
   },
   "connection_contract": {
     "inputs": {
-      "api_key": {
+      "host": {
         "source": "user",
         "phase": "pre_auth",
+        "storage": "connection.parameters",
+        "type": "string",
+        "required": true,
+        "default": "127.0.0.1",
+        "ui": {
+          "label": "Host",
+          "widget": "text",
+          "placeholder": "e.g. 127.0.0.1 or db.example.com"
+        }
+      },
+      "port": {
+        "source": "user",
+        "phase": "pre_auth",
+        "storage": "connection.parameters",
+        "type": "integer",
+        "required": true,
+        "default": 3306,
+        "ui": {
+          "label": "Port",
+          "widget": "text"
+        }
+      },
+      "database": {
+        "source": "user",
+        "phase": "pre_auth",
+        "storage": "connection.parameters",
+        "type": "string",
+        "required": true,
+        "ui": {
+          "label": "Database",
+          "widget": "text",
+          "placeholder": "e.g. my_database"
+        }
+      },
+      "username": {
+        "source": "user",
+        "phase": "auth",
+        "storage": "connection.parameters",
+        "type": "string",
+        "required": true,
+        "ui": {
+          "label": "Username",
+          "widget": "text",
+          "placeholder": "e.g. root"
+        }
+      },
+      "password": {
+        "source": "user",
+        "phase": "auth",
         "storage": "secrets",
         "type": "string",
         "required": true,
         "secret": true,
         "ui": {
-          "label": "API Key",
+          "label": "Password",
           "widget": "password"
         }
+      },
+      "ssl_mode": {
+        "source": "user",
+        "phase": "pre_auth",
+        "storage": "connection.parameters",
+        "type": "string",
+        "required": false,
+        "default": "none",
+        "enum": ["none", "require", "verify-ca", "verify-full"],
+        "ui": {
+          "label": "SSL Mode",
+          "widget": "select",
+          "help_text": "TLS negotiation mode. 'none' = plaintext; 'require' = encrypt without certificate verification; 'verify-ca' = encrypt and verify the server certificate against the CA; 'verify-full' = also verify the server hostname.",
+          "options": [
+            { "label": "None (no TLS)", "value": "none" },
+            { "label": "Require (encrypt, no verification)", "value": "require" },
+            { "label": "Verify CA (encrypt, verify certificate)", "value": "verify-ca" },
+            { "label": "Verify Full (verify certificate and hostname)", "value": "verify-full" }
+          ]
+        }
+      },
+      "ssl_ca_certificate": {
+        "source": "user",
+        "phase": "pre_auth",
+        "storage": "secrets",
+        "type": "string",
+        "required": false,
+        "secret": true,
+        "ui": {
+          "label": "SSL CA Certificate",
+          "widget": "textarea",
+          "help_text": "PEM-encoded CA certificate used to verify the MariaDB server's TLS certificate. Required when SSL Mode is 'verify-ca' or 'verify-full'."
+        }
       }
+    }
+  },
+  "resource_discovery": {
+    "strategy": "information_schema",
+    "transport_ref": "database",
+    "implementation": {
+      "type": "builtin"
+    },
+    "produces": [
+      "connection.endpoints",
+      "connection.type_map"
+    ],
+    "triggers": {
+      "list_resources": "on_activation",
+      "describe_resource": "on_resource_selected"
     }
   }
 }
