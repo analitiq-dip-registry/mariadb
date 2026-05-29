@@ -1,5 +1,9 @@
 # MariaDB
 
+[![Status: unverified](https://img.shields.io/badge/status-unverified-orange)](https://github.com/analitiq-dip-registry)
+[![Latest release](https://img.shields.io/github/v/release/analitiq-dip-registry/mariadb)](https://github.com/analitiq-dip-registry/mariadb/releases)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 Connects to a MariaDB relational database (an open-source fork of MySQL) to read structured data and discover its schemas, tables, and columns.
 
 ## What is this?
