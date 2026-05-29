@@ -1,10 +1,10 @@
-# REPLACE_CONNECTOR_NAME
+# MariaDB
 
-REPLACE with a short description of what this connector does and what system it integrates with.
+Connects to a MariaDB relational database (an open-source fork of MySQL) to read structured data and discover its schemas, tables, and columns.
 
 ## What is this?
 
-This is a **connector** — a configuration that defines how to authenticate with REPLACE_SYSTEM_NAME and what data endpoints are available for reading and writing. It does not move data by itself. Instead, it is used by the [Analitiq](https://analitiq-app.com) data integration platform or the open-source `analitiq-dip-registry` engine to set up data pipelines.
+This is a **connector** — a configuration that defines how to authenticate with MariaDB and what data endpoints are available for reading and writing. It does not move data by itself. Instead, it is used by the [Analitiq](https://analitiq-app.com) data integration platform or the open-source `analitiq-dip-registry` engine to set up data pipelines.
 
 ## How to use this connector
 
@@ -27,39 +27,50 @@ The `analitiq-plugin-dataflow` plugin will automatically fetch the required conn
 
 ## Prerequisites
 
-REPLACE with what the user needs before they can connect. Be specific:
+Before you can connect, you need:
 
-- e.g., "A registered OAuth2 application with client ID and client secret"
-- e.g., "An API key generated from your account settings"
-- e.g., "Admin access to your organisation's account"
+- A running MariaDB server reachable from Analitiq (host and port — default `3306`)
+- The name of the database (schema) you want to read from
+- A database user and password with privileges to read the target tables and `information_schema`
+- *(Optional, for TLS)* A PEM-encoded CA certificate when using `verify-ca` or `verify-full` SSL modes
 
 ## Authentication
 
-REPLACE with a plain-language explanation of how to authenticate. If the system supports multiple authentication methods, explain when to use each one.
+MariaDB uses standard database credentials. You supply the **host**, **port**, **database**, **username**, and **password**; the connector opens a connection over the MySQL wire protocol using the SQLAlchemy `mariadb+pymysql` driver.
+
+TLS is configurable through the **SSL Mode** setting:
+
+- `none` — plaintext, no encryption
+- `require` — encrypt the connection without verifying the server certificate
+- `verify-ca` — encrypt and verify the server certificate against the supplied CA
+- `verify-full` — also verify the server hostname
+
+For `verify-ca` and `verify-full`, paste a PEM-encoded CA certificate into the **SSL CA Certificate** field.
 
 ### How to get your credentials
 
-REPLACE with step-by-step instructions:
-
-1. e.g., "Log in to your account at https://app.example.com"
-2. e.g., "Navigate to Settings > API Keys"
-3. e.g., "Click 'Generate New Key' and copy the key"
+1. Connect to your MariaDB server as an administrator (e.g. with `mysql` or `mariadb` CLI).
+2. Create a read-only user, for example:
+   ```sql
+   CREATE USER 'analitiq'@'%' IDENTIFIED BY 'a-strong-password';
+   GRANT SELECT ON your_database.* TO 'analitiq'@'%';
+   FLUSH PRIVILEGES;
+   ```
+3. Use that username and password, along with your server host, port, and database name, when configuring the connection.
 
 ## Available Endpoints
 
-The table below lists all data endpoints defined by this connector. Each endpoint represents a resource you can read from or write to.
+This is a database connector, so it does not ship a fixed list of endpoints. After the connection is activated, the connector discovers readable resources (tables and views) directly from `information_schema`, and maps each column's native MariaDB type to a canonical Arrow type using `definition/type-map.json`.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-|          |        |             |
+| _discovered at runtime_ | read | Tables and views enumerated from `information_schema` |
 
 ## Limitations
 
-REPLACE with any important limitations users should know about:
-
-- **Rate limits** — e.g., "The API allows 60 requests per minute"
-- **Data freshness** — e.g., "Data may be delayed by up to 15 minutes"
-- **Sandbox vs Production** — e.g., "Sandbox and production use different API keys"
+- **Rate limits** — none imposed by the connector; concurrency is bounded by the server's `max_connections` and available resources.
+- **Read-oriented** — discovery and reads target tables, views, and `information_schema`. Grant the connection user only the privileges it needs.
+- **TLS certificates** — `verify-ca` / `verify-full` require a valid PEM-encoded CA certificate; otherwise the connection will fail.
 
 ## For AI agents
 
@@ -87,7 +98,7 @@ All connectors in this registry are community-maintained and live at [github.com
 
 ## Links
 
-- [API Documentation](REPLACE with URL)
+- [MariaDB Documentation](https://mariadb.com/kb/en/)
 - [Analitiq Cloud](https://analitiq-app.com)
 - [Analitiq Engine (open source)](https://github.com/analitiq-ai/analitiq-engine)
 - [Analitiq DIP Registry (open source)](https://github.com/analitiq-dip-registry)
