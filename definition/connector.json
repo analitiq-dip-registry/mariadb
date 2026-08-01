@@ -3,7 +3,7 @@
   "kind": "database",
   "connector_id": "mariadb",
   "display_name": "MariaDB",
-  "description": "MariaDB relational database — a community-developed, open-source fork of MySQL. Connects over the MySQL wire protocol via the SQLAlchemy mariadb+pymysql dialect for structured data storage, querying, and table discovery.",
+  "description": "MariaDB relational database (11.4 LTS), the community-developed fork of MySQL. Reads and writes over the async SQLAlchemy mariadb+aiomysql transport: the mariadb dialect name puts SQLAlchemy in MariaDB-only mode, so the server's 'X.Y.Z-MariaDB' version string is required and MariaDB-specific behaviour is never gated on a MySQL version probe. Username/password authentication, MariaDB's --ssl / --ssl-verify-server-cert TLS surface expressed as a four-value ssl_mode with a post-connect Ssl_cipher enforcement probe, schema/table/view discovery via information_schema, and declared SQL write-path capabilities (stage-then-merge with CREATE TEMPORARY TABLE ... LIKE and INSERT ... ON DUPLICATE KEY UPDATE). The session is pinned to SET time_zone = '+00:00' so TIMESTAMP values carry a well-defined UTC instant. No ADBC driver and no Arrow Flight SQL endpoint exist for MariaDB, so the SQLAlchemy transport is the only supported path; batches land via executemany (LOAD DATA LOCAL INFILE is not reachable through the engine's connect-argument surface). MariaDB natives with no MySQL counterpart - UUID, INET4 and INET6 - are read as text.",
   "documentation_url": "https://mariadb.com/kb/en/",
   "tags": [
     "database",
@@ -17,10 +17,10 @@
   "transports": {
     "database": {
       "transport_type": "sqlalchemy",
-      "driver": "mariadb+pymysql",
+      "driver": "mariadb+aiomysql",
       "dsn": {
         "kind": "url_template",
-        "template": "mariadb+pymysql://{username}:{password}@{host}:{port}/{database}",
+        "template": "mariadb+aiomysql://{username}:{password}@{host}:{port}/{database}",
         "bindings": {
           "username": {
             "value": {
@@ -79,7 +79,8 @@
         "ui": {
           "label": "Host",
           "widget": "text",
-          "placeholder": "e.g. 127.0.0.1 or db.example.com"
+          "placeholder": "e.g. 127.0.0.1 or db.example.com",
+          "help_text": "Hostname or IP address of the MariaDB server. The aiomysql driver always connects over TCP, so prefer 127.0.0.1 over the literal 'localhost' (which other MariaDB clients special-case into a Unix socket)."
         }
       },
       "port": {
@@ -91,7 +92,8 @@
         "default": 3306,
         "ui": {
           "label": "Port",
-          "widget": "text"
+          "widget": "number",
+          "help_text": "TCP port the server listens on; MariaDB's documented default is 3306."
         }
       },
       "database": {
@@ -103,7 +105,8 @@
         "ui": {
           "label": "Database",
           "widget": "text",
-          "placeholder": "e.g. my_database"
+          "placeholder": "e.g. my_database",
+          "help_text": "MariaDB uses 'database' and 'schema' interchangeably - there is no catalog level above it."
         }
       },
       "username": {
@@ -115,7 +118,7 @@
         "ui": {
           "label": "Username",
           "widget": "text",
-          "placeholder": "e.g. root"
+          "placeholder": "e.g. analitiq"
         }
       },
       "password": {
@@ -146,23 +149,23 @@
         "ui": {
           "label": "SSL Mode",
           "widget": "select",
-          "help_text": "TLS negotiation mode. 'none' = plaintext; 'require' = encrypt without certificate verification; 'verify-ca' = encrypt and verify the server certificate against the CA; 'verify-full' = also verify the server hostname.",
+          "help_text": "MariaDB has no --ssl-mode option of its own (MDEV-22129 was closed unimplemented); its client surface is --ssl plus --ssl-verify-server-cert, so this connector exposes those two switches as four modes. 'none' = plaintext; 'require' = encrypt without certificate verification; 'verify-ca' = encrypt and verify the server certificate against the supplied CA; 'verify-full' = also verify the server host name (MariaDB's own --ssl-verify-server-cert). Every mode above 'none' is enforced post-connect via SHOW STATUS LIKE 'Ssl_cipher', because the driver falls back to plaintext silently when the server does not advertise TLS.",
           "options": [
             {
-              "label": "None (no TLS)",
-              "value": "none"
+              "value": "none",
+              "label": "None - unencrypted connection (default)"
             },
             {
-              "label": "Require (encrypt, no verification)",
-              "value": "require"
+              "value": "require",
+              "label": "Require - encrypt or fail; no certificate verification"
             },
             {
-              "label": "Verify CA (encrypt, verify certificate)",
-              "value": "verify-ca"
+              "value": "verify-ca",
+              "label": "Verify CA - encrypt and verify the server certificate against the CA"
             },
             {
-              "label": "Verify Full (verify certificate and hostname)",
-              "value": "verify-full"
+              "value": "verify-full",
+              "label": "Verify Full - also verify the server host name"
             }
           ]
         }
@@ -177,16 +180,67 @@
         "ui": {
           "label": "SSL CA Certificate",
           "widget": "textarea",
-          "help_text": "PEM-encoded CA certificate used to verify the MariaDB server's TLS certificate. Required when SSL Mode is 'verify-ca' or 'verify-full'."
+          "help_text": "PEM-encoded CA certificate (MariaDB's --ssl-ca). Required when SSL Mode is 'verify-ca' or 'verify-full'; ignored for the other modes."
         }
       }
+    },
+    "required_for_activation": [
+      "connection.parameters.host",
+      "connection.parameters.port",
+      "connection.parameters.database",
+      "connection.parameters.username",
+      "secrets.password"
+    ],
+    "validation": {
+      "rules": [
+        {
+          "when": {
+            "field": "ssl_mode",
+            "in": [
+              "verify-ca",
+              "verify-full"
+            ]
+          },
+          "require": [
+            "ssl_ca_certificate"
+          ],
+          "message": "ssl_ca_certificate is required when ssl_mode is verify-ca or verify-full"
+        }
+      ]
     }
+  },
+  "sql_capabilities": {
+    "catalog": "none",
+    "session_targeting": "per_statement",
+    "merge_form": "insert_on_duplicate_key",
+    "bulk_load": {},
+    "stage": {
+      "scope": "temp",
+      "schema": "target",
+      "transactional_ddl": false
+    },
+    "limits": {
+      "max_bind_params": 65535,
+      "max_identifier_len": 64
+    }
+  },
+  "write_unit": {
+    "rows": 5000,
+    "bytes": 4194304
   },
   "resource_discovery": {
     "strategy": "information_schema",
     "transport_ref": "database",
     "implementation": {
       "type": "builtin"
+    },
+    "options": {
+      "exclude_schemas": [
+        "information_schema",
+        "mysql",
+        "performance_schema",
+        "sys"
+      ]
     },
     "produces": [
       "connection.endpoints",

@@ -1,0 +1,18 @@
+# This connector's driver only. The engine image ships no database drivers
+# and provides the CDK itself, which is never listed here.
+
+# Async MySQL-protocol DBAPI behind the SQLAlchemy `mariadb+aiomysql`
+# transport. MariaDB speaks the MySQL wire protocol, and the `mariadb`
+# dialect name selects SQLAlchemy's MariaDB-only variant over this DBAPI.
+# Pulls in PyMySQL, which aiomysql builds on.
+aiomysql>=0.2.0
+
+# aiomysql's adapter still passes the deprecated positional argument to
+# PyMySQL Connection.ping(); PyMySQL 1.2 removed it. Pin below 1.2 until
+# aiomysql ships a fix.
+pymysql<1.2
+
+# No `cryptography` pin here, unlike the MySQL connector: that dependency
+# exists for MySQL 8's caching_sha2_password RSA key exchange, and MariaDB
+# does not ship that auth plugin (it authenticates with
+# mysql_native_password / unix_socket).

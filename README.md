@@ -4,7 +4,7 @@
 [![Latest release](https://img.shields.io/github/v/release/analitiq-dip-registry/mariadb)](https://github.com/analitiq-dip-registry/mariadb/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-Connects to a MariaDB relational database (an open-source fork of MySQL) to read structured data and discover its schemas, tables, and columns.
+Connects to a MariaDB relational database (an open-source fork of MySQL) to read structured data, discover its schemas, tables, and columns, and write data back as a pipeline destination.
 
 ## What is this?
 
@@ -35,12 +35,12 @@ Before you can connect, you need:
 
 - A running MariaDB server reachable from Analitiq (host and port — default `3306`)
 - The name of the database (schema) you want to read from
-- A database user and password with privileges to read the target tables and `information_schema`
+- A database user and password with privileges to read the target tables and `information_schema` (plus `CREATE`, `CREATE TEMPORARY TABLES`, `INSERT` and `UPDATE` on the target database if you use MariaDB as a destination)
 - *(Optional, for TLS)* A PEM-encoded CA certificate when using `verify-ca` or `verify-full` SSL modes
 
 ## Authentication
 
-MariaDB uses standard database credentials. You supply the **host**, **port**, **database**, **username**, and **password**; the connector opens a connection over the MySQL wire protocol using the SQLAlchemy `mariadb+pymysql` driver.
+MariaDB uses standard database credentials. You supply the **host**, **port**, **database**, **username**, and **password**; the connector opens a connection over the MySQL wire protocol using the async SQLAlchemy `mariadb+aiomysql` driver (the `mariadb` dialect name puts SQLAlchemy in MariaDB-only mode, and aiomysql is the async DBAPI it runs on).
 
 TLS is configurable through the **SSL Mode** setting:
 
@@ -54,7 +54,7 @@ For `verify-ca` and `verify-full`, paste a PEM-encoded CA certificate into the *
 ### How to get your credentials
 
 1. Connect to your MariaDB server as an administrator (e.g. with `mysql` or `mariadb` CLI).
-2. Create a read-only user, for example:
+2. Create a dedicated user — read-only is enough when MariaDB is only a source:
    ```sql
    CREATE USER 'analitiq'@'%' IDENTIFIED BY 'a-strong-password';
    GRANT SELECT ON your_database.* TO 'analitiq'@'%';
@@ -62,19 +62,41 @@ For `verify-ca` and `verify-full`, paste a PEM-encoded CA certificate into the *
    ```
 3. Use that username and password, along with your server host, port, and database name, when configuring the connection.
 
+   If you plan to use MariaDB as a **destination**, the user also needs write privileges on the target database:
+   ```sql
+   GRANT SELECT, INSERT, UPDATE, CREATE, CREATE TEMPORARY TABLES ON your_database.* TO 'analitiq'@'%';
+   FLUSH PRIVILEGES;
+   ```
+
 ## Available Endpoints
 
-This is a database connector, so it does not ship a fixed list of endpoints. After the connection is activated, the connector discovers readable resources (tables and views) directly from `information_schema`, and maps each column's native MariaDB type to a canonical Arrow type using `definition/type-map.json`.
+This is a database connector, so it does not ship a fixed list of endpoints. After the connection is activated, the connector discovers resources (tables and views) directly from `information_schema`. Native MariaDB column types are mapped to canonical Arrow types on the read path via `definition/type-map-read.json`; on the write path the reverse mapping — canonical Arrow type to the native DDL type used when the connector creates a table — lives in `definition/type-map-write.json`.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | _discovered at runtime_ | read | Tables and views enumerated from `information_schema` |
+| _selected at pipeline setup_ | write | Tables created and upserted into by the stage-then-merge write path |
+
+## Writing data (destination)
+
+The connector is registered as both a source and a destination. Batches are staged and merged rather than written directly:
+
+1. A stage table is created with `CREATE TEMPORARY TABLE <stage> LIKE <target>`, so it binds every column exactly as the target does. Being `TEMPORARY`, it lives only in the connector's own session and cannot leak.
+2. The batch lands in the stage via `executemany`.
+3. The stage is merged into the target with `INSERT INTO <target> (...) SELECT ... FROM <stage> ON DUPLICATE KEY UPDATE ...` — MariaDB has no `MERGE` and no `ON CONFLICT`, so the upsert fires on the PRIMARY KEY or any UNIQUE index rather than on named keys.
 
 ## Limitations
 
 - **Rate limits** — none imposed by the connector; concurrency is bounded by the server's `max_connections` and available resources.
-- **Read-oriented** — discovery and reads target tables, views, and `information_schema`. Grant the connection user only the privileges it needs.
+- **MariaDB servers only** — the `mariadb` dialect name puts SQLAlchemy in MariaDB-only mode: it asserts the server's `X.Y.Z-MariaDB` version string and refuses a plain MySQL server. Use the `mysql` connector for those.
 - **TLS certificates** — `verify-ca` / `verify-full` require a valid PEM-encoded CA certificate; otherwise the connection will fail.
+- **SSL mode defaults to `none`** — MariaDB has no `--ssl-mode` client option of its own (MDEV-22129 was closed unimplemented), so the four modes here express its `--ssl` / `--ssl-verify-server-cert` pair. Every mode above `none` is enforced *post-connect* with a `SHOW STATUS LIKE 'Ssl_cipher'` probe and fails loudly if the session turned out unencrypted, because the driver falls back to plaintext silently when the server does not advertise TLS.
+- **Sessions are pinned to UTC** — MariaDB converts `TIMESTAMP` through the session `time_zone`, so the connector issues `SET time_zone = '+00:00'` on every new connection. Retrieved instants are then correct regardless of the server's setting, but `CURRENT_TIMESTAMP`/`NOW()` defaults evaluated on connector connections generate UTC wall-clock values.
+- **`TIME` maps to `Duration`, not time-of-day** — MariaDB `TIME` is a signed duration (`-838:59:59` to `+838:59:59`). Columns are read as `Duration` canonicals (unit follows the declared fsp) so negative and >24 h values survive intact.
+- **Written text columns are capped at 255 characters** — on the write path the `Utf8` canonical renders `VARCHAR(255)`. MariaDB rejects `TEXT`/`BLOB` columns in a key without a prefix length, and the engine declares its keyless-stream dedup column as a `Utf8` primary key, so one rendering has to serve both roles. Longer values fail loudly under strict mode, and a table with many string columns can exceed MariaDB's 65,535-byte row limit. `LargeUtf8` renders `LONGTEXT` and is the escape hatch for genuinely long text.
+- **Bulk load is not used** — MariaDB's native `LOAD DATA LOCAL INFILE` requires the client connection to be opened with `local_infile=True`, which aiomysql defaults to off and the engine's SQLAlchemy transport exposes no channel to set. Batches land via `executemany` instead.
+- **MariaDB-only natives are read as text** — `UUID`, `INET4` and `INET6` (which have no MySQL counterpart) map to `Utf8`; spatial/geometry types map to `Binary` (WKB).
+- **System schemas are hidden from discovery** — `information_schema`, `mysql`, `performance_schema` and `sys` are excluded from resource discovery.
 
 ## For AI agents
 

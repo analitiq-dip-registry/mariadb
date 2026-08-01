@@ -1,0 +1,45 @@
+[
+  { "match": "exact", "canonical": "Boolean", "native": "TINYINT(1)" },
+
+  { "match": "exact", "canonical": "Int8", "native": "TINYINT" },
+  { "match": "exact", "canonical": "Int16", "native": "SMALLINT" },
+  { "match": "exact", "canonical": "Int32", "native": "INT" },
+  { "match": "exact", "canonical": "Int64", "native": "BIGINT" },
+  { "match": "exact", "canonical": "UInt8", "native": "TINYINT UNSIGNED" },
+  { "match": "exact", "canonical": "UInt16", "native": "SMALLINT UNSIGNED" },
+  { "match": "exact", "canonical": "UInt32", "native": "INT UNSIGNED" },
+  { "match": "exact", "canonical": "UInt64", "native": "BIGINT UNSIGNED" },
+
+  { "match": "exact", "canonical": "Float16", "native": "FLOAT" },
+  { "match": "exact", "canonical": "Float32", "native": "FLOAT" },
+  { "match": "exact", "canonical": "Float64", "native": "DOUBLE" },
+
+  { "match": "regex", "canonical": "^Decimal(?:128|256)\\((?<p>[1-9]|[1-5]\\d|6[0-5]),\\s*(?<s>\\d|[12]\\d|30)\\)$", "native": "DECIMAL(${p}, ${s})" },
+
+  { "match": "exact", "canonical": "Utf8", "native": "VARCHAR(255)" },
+  { "match": "exact", "canonical": "LargeUtf8", "native": "LONGTEXT" },
+  { "match": "exact", "canonical": "Null", "native": "VARCHAR(255)" },
+
+  { "match": "exact", "canonical": "Binary", "native": "BLOB" },
+  { "match": "exact", "canonical": "LargeBinary", "native": "LONGBLOB" },
+  { "match": "regex", "canonical": "^FixedSizeBinary\\((?<width>[1-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-5])\\)$", "native": "BINARY(${width})" },
+  { "match": "regex", "canonical": "^FixedSizeBinary\\(\\d+\\)$", "native": "LONGBLOB" },
+
+  { "match": "exact", "canonical": "Date32", "native": "DATE" },
+  { "match": "exact", "canonical": "Date64", "native": "DATE" },
+
+  { "match": "regex", "canonical": "^Time32\\(SECOND\\)$", "native": "TIME(0)" },
+  { "match": "regex", "canonical": "^Time32\\(MILLISECOND\\)$", "native": "TIME(3)" },
+  { "match": "regex", "canonical": "^Time64\\((?:MICROSECOND|NANOSECOND)\\)$", "native": "TIME(6)" },
+  { "match": "regex", "canonical": "^Duration\\(SECOND\\)$", "native": "TIME(0)" },
+  { "match": "regex", "canonical": "^Duration\\(MILLISECOND\\)$", "native": "TIME(3)" },
+  { "match": "regex", "canonical": "^Duration\\((?:MICROSECOND|NANOSECOND)\\)$", "native": "TIME(6)" },
+
+  { "match": "regex", "canonical": "^Timestamp\\(SECOND(?:,\\s*[^)]+)?\\)$", "native": "DATETIME(0)" },
+  { "match": "regex", "canonical": "^Timestamp\\(MILLISECOND(?:,\\s*[^)]+)?\\)$", "native": "DATETIME(3)" },
+  { "match": "regex", "canonical": "^Timestamp\\((?:MICROSECOND|NANOSECOND)(?:,\\s*[^)]+)?\\)$", "native": "DATETIME(6)" },
+
+  { "match": "exact", "canonical": "Json", "native": "JSON" },
+  { "match": "exact", "canonical": "Object", "native": "JSON" },
+  { "match": "exact", "canonical": "List", "native": "JSON" }
+]
