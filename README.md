@@ -70,7 +70,7 @@ For `verify-ca` and `verify-full`, paste a PEM-encoded CA certificate into the *
 
 ## Available Endpoints
 
-This is a database connector, so it does not ship a fixed list of endpoints. After the connection is activated, the connector discovers resources (tables and views) directly from `information_schema`. Native MariaDB column types are mapped to canonical Arrow types on the read path via `definition/type-map-read.json`; on the write path the reverse mapping — canonical Arrow type to the native DDL type used when the connector creates a table — lives in `definition/type-map-write.json`.
+This is a database connector, so it does not ship a fixed list of endpoints. After the connection is activated, the connector discovers resources (tables and views) directly from `information_schema`. Native MariaDB column types are mapped to canonical Arrow types on the read path via the `read` rules of `definition/type-map.json`; on the write path the reverse mapping — canonical Arrow type to the native DDL type used when the connector creates a table — lives in its `write` rules.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|

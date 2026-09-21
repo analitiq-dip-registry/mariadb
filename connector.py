@@ -6,8 +6,8 @@ stage, ``INSERT ... SELECT ... ON DUPLICATE KEY UPDATE`` for the upsert -
 MariaDB has no MERGE and no ON CONFLICT), the aiomysql single-parameter
 TLS surface with a post-connect enforcement probe, the UTC session pin,
 and the fractional-second CURRENT_TIMESTAMP(6) default. Column types for
-the write direction are governed entirely by
-``definition/type-map-write.json``; this module ships no Python
+the write direction are governed entirely by the
+``write`` rules of ``definition/type-map.json``; this module ships no Python
 type-rendering table.
 
 Transport: async SQLAlchemy ``mariadb+aiomysql``. The ``mariadb`` dialect

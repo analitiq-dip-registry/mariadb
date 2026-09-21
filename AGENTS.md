@@ -34,9 +34,9 @@ automatically and produces connection-scoped endpoints and a type map.
 
 This is a database connector — it ships no static endpoints. Resources (tables
 and views) are discovered at runtime from `information_schema`. Native column
-types map to canonical Arrow types via `definition/type-map-read.json`; the
-write path renders canonical Arrow types back into native DDL types via
-`definition/type-map-write.json`.
+types map to canonical Arrow types via the `read` rules of `definition/type-map.json`; the
+write path renders canonical Arrow types back into native DDL types via its
+`write` rules.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
