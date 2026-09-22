@@ -83,12 +83,12 @@
     },
     {
       "match": "regex",
-      "native_type": "^(?:DECIMAL|DEC|NUMERIC|FIXED)\\((?<precision>[1-9]|[12]\\d|3[0-8]),\\s*(?<scale>\\d|[12]\\d|3[0-8])\\)(?: UNSIGNED)?(?: ZEROFILL)?$",
+      "native_type": "^(?:DECIMAL|DEC|NUMERIC|FIXED)\\((?<precision>[1-9]|[12]\\d|3[0-8]),\\s*(?<scale>\\d|[12]\\d|30)\\)(?: UNSIGNED)?(?: ZEROFILL)?$",
       "arrow_type": "Decimal128(${precision}, ${scale})"
     },
     {
       "match": "regex",
-      "native_type": "^(?:DECIMAL|DEC|NUMERIC|FIXED)\\((?<precision>39|[45]\\d|6[0-5]),\\s*(?<scale>\\d|[12]\\d|3[0-8])\\)(?: UNSIGNED)?(?: ZEROFILL)?$",
+      "native_type": "^(?:DECIMAL|DEC|NUMERIC|FIXED)\\((?<precision>39|[45]\\d|6[0-5]),\\s*(?<scale>\\d|[12]\\d|30)\\)(?: UNSIGNED)?(?: ZEROFILL)?$",
       "arrow_type": "Decimal256(${precision}, ${scale})"
     },
     {
